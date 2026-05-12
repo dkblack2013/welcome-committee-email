@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "welcome-committee-email"
+version = "0.2.0"
+description = "CLI for the parish welcome committee: scrape Gmail registrations and draft bulletin emails."
+requires-python = ">=3.10"
+dependencies = [
+    "google-api-python-client",
+    "google-auth-oauthlib",
+    "google-auth-httplib2",
+    "openai",
+    "openpyxl",
+    "python-dotenv",
+]
+
+[project.scripts]
+welcome = "welcome.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
