@@ -91,10 +91,15 @@ def fetch_registration_emails(
     for msg_id in message_ids:
         msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
         payload = msg["payload"]
+        internal_epoch = int(msg["internalDate"]) // 1000
+        # Gmail's `after:` operator doesn't compare at second-level precision, so
+        # apply a strict filter client-side to exclude the boundary message.
+        if since_epoch is not None and internal_epoch <= since_epoch:
+            continue
         emails.append(
             {
                 "id": msg_id,
-                "internal_date_epoch": int(msg["internalDate"]) // 1000,
+                "internal_date_epoch": internal_epoch,
                 "subject": _get_header(payload, "Subject"),
                 "from": _get_header(payload, "From"),
                 "date": _get_header(payload, "Date"),

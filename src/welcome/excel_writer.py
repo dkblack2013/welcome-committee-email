@@ -10,9 +10,12 @@ from openpyxl import Workbook, load_workbook
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 XLSX_PATH = REPO_ROOT / "welcome_committee.xlsx"
+TEMPLATE_XLSX_PATH = REPO_ROOT / "welcome_committee_template.xlsx"
 
 HEADERS = ["Date Received", "Family Last Name", "First Name", "Last Name", "Email", "Ministries"]
 SHEET_NAME = "Members"
+COLUMNS_SHEET_NAME = "Sheet2"
+MINISTRY_LEADS_ROW = 2  # User-filled placeholder; preserved across runs.
 
 
 def _format_date(epoch: int | None) -> str:
@@ -96,3 +99,69 @@ def upsert_members(
 
     wb.save(path)
     return added, updated
+
+
+def write_template_xlsx(
+    source: Path = XLSX_PATH,
+    dest: Path = TEMPLATE_XLSX_PATH,
+) -> None:
+    """Build welcome_committee_template.xlsx from welcome_committee.xlsx.
+
+    Two sheets, matching the layout of welcome-committee-example.xlsx:
+      * 'Members'  — verbatim copy of the source Members sheet
+      * 'Sheet2'   — one column per ministry, ministry name in row 1, ministry-lead
+                     email in row 2 (preserved across runs), member emails row 3+.
+
+    Regenerated from scratch on each call. The only data preserved across runs is
+    row 2 of Sheet2 (the ministry-lead emails the user types in manually)."""
+    # Lazy import to avoid a hard dependency at module-load time on the data_parser
+    # constants if the user only runs `welcome bulletin`.
+    from .data_parser import MINISTRY_BUCKETS
+
+    if not source.exists():
+        raise FileNotFoundError(f"Source workbook not found: {source}")
+
+    src_wb = load_workbook(source)
+    src_ws = src_wb[SHEET_NAME]
+
+    preserved_leads: dict[str, str] = {}
+    if dest.exists():
+        old = load_workbook(dest)
+        if COLUMNS_SHEET_NAME in old.sheetnames:
+            old_ws = old[COLUMNS_SHEET_NAME]
+            for col_idx, ministry in enumerate(MINISTRY_BUCKETS, start=1):
+                value = old_ws.cell(row=MINISTRY_LEADS_ROW, column=col_idx).value
+                if value:
+                    preserved_leads[ministry] = value
+
+    src_headers = [c.value for c in src_ws[1]]
+    email_idx = src_headers.index("Email")
+    ministries_idx = src_headers.index("Ministries")
+
+    ministry_emails: dict[str, list[str]] = {b: [] for b in MINISTRY_BUCKETS}
+    for row in src_ws.iter_rows(min_row=2, values_only=True):
+        email = row[email_idx]
+        ministries_cell = row[ministries_idx] or ""
+        if not email:
+            continue
+        for m in (s.strip() for s in str(ministries_cell).split(",")):
+            if m in ministry_emails:
+                ministry_emails[m].append(str(email))
+
+    out = Workbook()
+    members_ws = out.active
+    members_ws.title = SHEET_NAME
+    for row in src_ws.iter_rows(values_only=True):
+        members_ws.append(list(row))
+
+    sheet2 = out.create_sheet(COLUMNS_SHEET_NAME)
+    sheet2.append(list(MINISTRY_BUCKETS))
+    sheet2.append([preserved_leads.get(b, "") for b in MINISTRY_BUCKETS])
+
+    max_rows = max((len(v) for v in ministry_emails.values()), default=0)
+    for i in range(max_rows):
+        sheet2.append(
+            [ministry_emails[b][i] if i < len(ministry_emails[b]) else "" for b in MINISTRY_BUCKETS]
+        )
+
+    out.save(dest)

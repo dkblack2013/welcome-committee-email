@@ -6,8 +6,10 @@ credentials.json
 # Generated outputs
 state.json
 welcome_committee.xlsx
-current_wave.md
-bulletin_email_draft.txt
+email-materials/
+current_wave*.md
+bulletin_email_draft*.txt
+*.xlsx
 
 # Bulletin PDFs
 bulletins/

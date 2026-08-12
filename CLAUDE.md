@@ -13,8 +13,8 @@ Guidance for Claude Code when working in this repository.
 
 A small Python CLI for the parish welcome committee. Two workflows, both end in copy-paste-into-Gmail:
 
-1. **`emails`** — pulls every email from `office@eastsideregion.org` since the last run, parses the family registration form fields, sorts members into ministry buckets, appends to `welcome_committee.xlsx`, and writes a `current_wave.md` with per-ministry email lists ready to BCC.
-2. **`bulletin`** — picks the newest PDF in `bulletins/`, uploads it to OpenAI via the Files API, runs the prompt in `prompt_for_online_chatgpt.txt`, and writes the model's numbered event list to `bulletin_email_draft.txt`.
+1. **`emails`** — pulls every email from `office@eastsideregion.org` since the last run, parses the family registration form fields, sorts members into ministry buckets, appends to `welcome_committee.xlsx`, and writes a `email-materials/current_wave_<YYYY-MM-DD_HHMM>.md` with per-ministry email lists ready to BCC.
+2. **`bulletin`** — picks the newest PDF in `bulletins/`, uploads it to OpenAI via the Files API, runs the prompt in `prompt_for_online_chatgpt.txt`, and writes the model's numbered event list to `email-materials/bulletin_email_draft_<YYYY-MM-DD_HHMM>.txt`.
 
 ## Run
 
@@ -41,7 +41,7 @@ bulletins/           # input PDFs, named YYYYMMDD.pdf
 prompt_for_online_chatgpt.txt   # single source of truth for the bulletin prompt
 ```
 
-Outputs (all gitignored, all in repo root): `welcome_committee.xlsx`, `current_wave.md`, `bulletin_email_draft.txt`, `state.json`.
+Outputs (all gitignored, all in repo root): `welcome_committee.xlsx`, `email-materials/current_wave_<YYYY-MM-DD_HHMM>.md`, `email-materials/bulletin_email_draft_<YYYY-MM-DD_HHMM>.txt`, `state.json`.
 
 ## Conventions
 
@@ -61,6 +61,6 @@ Outputs (all gitignored, all in repo root): `welcome_committee.xlsx`, `current_w
 
 ## Before claiming a change works
 
-- For Gmail/Excel changes: run `python -m welcome emails` end-to-end and open the xlsx + `current_wave.md` to verify contents.
-- For bulletin changes: run `python -m welcome bulletin` and read `bulletin_email_draft.txt`. Compare against pasting the same PDF into ChatGPT browser — output should be comparable.
+- For Gmail/Excel changes: run `python -m welcome emails` end-to-end and open the xlsx + `email-materials/current_wave_<YYYY-MM-DD_HHMM>.md` to verify contents.
+- For bulletin changes: run `python -m welcome bulletin` and read `email-materials/bulletin_email_draft_<YYYY-MM-DD_HHMM>.txt`. Compare against pasting the same PDF into ChatGPT browser — output should be comparable.
 - Type checks and unit tests verify code, not feature correctness. If the workflow can't be run end-to-end (e.g., no OpenAI key in your sandbox), say so explicitly.

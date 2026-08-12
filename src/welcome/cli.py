@@ -6,20 +6,20 @@ import argparse
 from pathlib import Path
 
 from .data_parser import parse_emails
-from .excel_writer import XLSX_PATH, upsert_members
+from .excel_writer import TEMPLATE_XLSX_PATH, XLSX_PATH, upsert_members, write_template_xlsx
 from .gmail_fetcher import authenticate_gmail, fetch_registration_emails
 from .pdf_parser import extract_events_from_pdf, latest_bulletin_path
 from .state import load_last_run_epoch, save_last_run_epoch
-from .wave_writer import WAVE_PATH, write_wave_md
+from .wave_writer import write_wave_md
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-DRAFT_PATH = REPO_ROOT / "bulletin_email_draft.txt"
+EMAIL_MATERIALS_DIR = REPO_ROOT / "email-materials"
 
 
 def cmd_emails(args: argparse.Namespace) -> int:
     since = load_last_run_epoch()
     if since is None:
-        print(f"No prior state — fetching the most recent {args.first_run_max} emails as a baseline.")
+        print(f"No prior state - fetching the most recent {args.first_run_max} emails as a baseline.")
     else:
         print(f"Fetching emails since epoch {since}.")
 
@@ -32,8 +32,8 @@ def cmd_emails(args: argparse.Namespace) -> int:
 
     if not emails:
         print("No new emails since last run.")
-        write_wave_md({})
-        print(f"Wrote empty wave file: {WAVE_PATH}")
+        wave_path, _ = write_wave_md({})
+        print(f"Wrote empty wave file: {wave_path}")
         return 0
 
     bucketed = parse_emails(emails)
@@ -50,21 +50,31 @@ def cmd_emails(args: argparse.Namespace) -> int:
             member_to_ministries[email][1].add(ministry)
 
     added, updated = upsert_members(member_to_ministries.values())
-    written = write_wave_md(bucketed)
+    wave_path, written = write_wave_md(bucketed)
+    try:
+        write_template_xlsx()
+    except PermissionError as exc:
+        print(
+            f"WARNING: could not write {TEMPLATE_XLSX_PATH.name} ({exc}). "
+            "It is likely open in Excel - close it and re-run to refresh."
+        )
 
     newest_epoch = max(e["internal_date_epoch"] for e in emails)
-    save_last_run_epoch(newest_epoch)
+    save_last_run_epoch(newest_epoch + 1)
 
     print(
-        f"Processed {len(emails)} email(s) → {added} new member(s), "
-        f"{updated} updated. {written} ministry section(s) in current_wave.md."
+        f"Processed {len(emails)} email(s): {added} new member(s), "
+        f"{updated} updated. {written} ministry section(s) in the wave file."
     )
-    print(f"  Excel: {XLSX_PATH}")
-    print(f"  Wave : {WAVE_PATH}")
+    print(f"  Excel    : {XLSX_PATH}")
+    print(f"  Template : {TEMPLATE_XLSX_PATH}")
+    print(f"  Wave     : {wave_path}")
     return 0
 
 
 def cmd_bulletin(args: argparse.Namespace) -> int:
+    from datetime import datetime
+
     pdf_path = Path(args.file).resolve() if args.file else latest_bulletin_path()
     if not pdf_path.exists():
         print(f"Bulletin not found: {pdf_path}")
@@ -82,8 +92,10 @@ def cmd_bulletin(args: argparse.Namespace) -> int:
         "Warm regards,\n"
         "The Welcome Committee\n"
     )
-    DRAFT_PATH.write_text(draft, encoding="utf-8")
-    print(f"Wrote draft: {DRAFT_PATH}")
+    EMAIL_MATERIALS_DIR.mkdir(parents=True, exist_ok=True)
+    draft_path = EMAIL_MATERIALS_DIR / f"bulletin_email_draft_{datetime.now().strftime('%Y-%m-%d_%H%M')}.txt"
+    draft_path.write_text(draft, encoding="utf-8")
+    print(f"Wrote draft: {draft_path}")
     return 0
 
 
@@ -98,8 +110,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_emails.add_argument(
         "--first-run-max",
         type=int,
-        default=50,
-        help="On first run only, how many recent emails to pull (default: 50).",
+        default=38,
+        help="On first run only, how many recent emails to pull (default: 38).",
     )
     p_emails.set_defaults(func=cmd_emails)
 
